@@ -8,7 +8,8 @@
     "start": "bun run src/server.ts",
     "migrate": "bun run src/migrate.ts",
     "smoke": "bun run src/smoke.ts",
-    "itest": "bun run src/itest.ts"
+    "itest": "bun run src/itest.ts",
+    "test": "bun test src"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
