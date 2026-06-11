@@ -13,6 +13,7 @@ import {
   listRunsForLoop,
 } from "./db.ts";
 import { pauseLoop, resumeLoop, startLoop, stopLoop } from "./loop.ts";
+import { clampInt } from "./util.ts";
 
 const app = new Hono();
 app.use("*", cors());
@@ -35,7 +36,8 @@ app.post("/api/loops", async (c) => {
   const goal = String(body.goal ?? "").trim();
   if (!goal) return c.json({ error: "goal is required" }, 400);
   const maxIterations = clampInt(body.maxIterations, 1, 100, 10);
-  const loop = await startLoop({ goal, maxIterations });
+  const mode = body.mode === "ralph" ? "ralph" : "orchestrated";
+  const loop = await startLoop({ goal, mode, maxIterations });
   return c.json(loop, 201);
 });
 
@@ -71,12 +73,6 @@ app.get("/api/runs/:id", async (c) => {
   const events = await listEventsForRun(run.id);
   return c.json({ ...run, events });
 });
-
-function clampInt(v: unknown, min: number, max: number, fallback: number): number {
-  const n = Math.floor(Number(v));
-  if (!Number.isFinite(n)) return fallback;
-  return Math.min(max, Math.max(min, n));
-}
 
 // Ensure the schema exists before serving (idempotent).
 await initSchema();

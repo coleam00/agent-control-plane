@@ -36,8 +36,12 @@ async function call(method: string, path: string, body?: unknown): Promise<Resp>
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 
-async function start(goal: string, maxIterations?: number): Promise<any> {
-  const { body } = await call("POST", "/api/loops", { goal, maxIterations });
+async function start(
+  goal: string,
+  maxIterations?: number,
+  mode: "orchestrated" | "ralph" = "ralph",
+): Promise<any> {
+  const { body } = await call("POST", "/api/loops", { goal, maxIterations, mode });
   if (body?.id) created.add(body.id);
   return body;
 }
@@ -217,6 +221,92 @@ async function main() {
   check("race: exactly 4 iterations, no duplicate runs",
     hDone.iterations === 4 && hDone.runs?.length === 4,
     `iterations=${hDone.iterations} runs=${hDone.runs?.length}`);
+
+  // =========================================================================
+  // ORCHESTRATED MODE: agents prompting agents
+  // =========================================================================
+  const orch = (runs: any[]) => runs.filter((r: any) => r.role === "orchestrator");
+  const work = (runs: any[]) => runs.filter((r: any) => r.role === "worker");
+
+  // O0. default mode (no mode in the request) is orchestrated
+  const dm = (await call("POST", "/api/loops", { goal: "[steps=1] default mode", maxIterations: 3 }))
+    .body;
+  if (dm?.id) created.add(dm.id);
+  check("orchestrated: default mode is orchestrated", dm.mode === "orchestrated", dm.mode);
+  await poll(dm.id, (l) => terminal(l.status));
+
+  // O1. a multi-round orchestrated loop completes and the orchestrator spawns workers
+  const o1 = await start("[steps=3][fanout=1] orchestrated build", 5, "orchestrated");
+  const o1d = await poll(o1.id, (l) => terminal(l.status));
+  check("orchestrated: completes", o1d.status === "completed", o1d.status);
+  check("orchestrated: 3 rounds", o1d.iterations === 3, `iterations=${o1d.iterations}`);
+  check("orchestrated: 3 orchestrator runs, all completed",
+    orch(o1d.runs).length === 3 && orch(o1d.runs).every((r: any) => r.status === "completed"),
+    `orch=${orch(o1d.runs).length}`);
+  check("orchestrated: 2 worker runs (the done round spawns none)",
+    work(o1d.runs).length === 2, `workers=${work(o1d.runs).length}`);
+  check("orchestrated: every worker links to an orchestrator (parent_run_id)",
+    work(o1d.runs).every((w: any) => orch(o1d.runs).some((o: any) => o.id === w.parent_run_id)));
+  check("orchestrated: orchestrator runs carry a parsed decision (reasoning)",
+    orch(o1d.runs).every((o: any) => !!o.reasoning));
+
+  // O2. fan-out: one orchestrator decision spawns multiple parallel workers
+  const o2 = await start("[steps=2][fanout=3] parallel work", 5, "orchestrated");
+  const o2d = await poll(o2.id, (l) => terminal(l.status));
+  check("fan-out: completes in 2 rounds",
+    o2d.status === "completed" && o2d.iterations === 2, `${o2d.status} iters=${o2d.iterations}`);
+  check("fan-out: 3 parallel workers spawned", work(o2d.runs).length === 3,
+    `workers=${work(o2d.runs).length}`);
+  const round1Orch = orch(o2d.runs).find((o: any) => o.iteration === 1);
+  check("fan-out: all 3 workers share the same orchestrator parent",
+    work(o2d.runs).every((w: any) => w.parent_run_id === round1Orch?.id));
+  check("fan-out: all parallel workers completed",
+    work(o2d.runs).every((w: any) => w.status === "completed"));
+
+  // O3. cap -> gate -> resume, orchestrated
+  const o3 = await start("[steps=5][fanout=1] long orchestrated", 2, "orchestrated");
+  const o3cap = await poll(o3.id, (l) => terminal(l.status));
+  check("orchestrated gate: parks at awaiting_approval", o3cap.status === "awaiting_approval", o3cap.status);
+  check("orchestrated gate: at 2 rounds", o3cap.iterations === 2, `iters=${o3cap.iterations}`);
+  await call("POST", `/api/loops/${o3.id}/resume`, { extraIterations: 3 });
+  const o3done = await poll(o3.id, (l) => l.status === "completed" || l.status === "failed");
+  check("orchestrated gate: completes after resume at 5 rounds",
+    o3done.status === "completed" && o3done.iterations === 5, `${o3done.status} iters=${o3done.iterations}`);
+  check("orchestrated gate: 5 orchestrator rounds + 4 workers",
+    orch(o3done.runs).length === 5 && work(o3done.runs).length === 4,
+    `orch=${orch(o3done.runs).length} work=${work(o3done.runs).length}`);
+
+  // O4. orchestrator failure fails the loop and spawns no workers
+  const o4 = await start("[orchfail] orchestrator dies", 3, "orchestrated");
+  const o4d = await poll(o4.id, (l) => l.status === "failed" || l.status === "completed");
+  check("orchestrated: orchestrator failure fails the loop", o4d.status === "failed", o4d.status);
+  check("orchestrated: last_error names the orchestrator",
+    /orchestrator/i.test(o4d.last_error ?? ""), o4d.last_error ?? "");
+  check("orchestrated: no workers spawned on orchestrator failure",
+    work(o4d.runs).length === 0, `workers=${work(o4d.runs).length}`);
+
+  // O5. worker failure is non-fatal; the orchestrator still drives to done
+  const o5 = await start("[steps=2][fanout=2][workerfail] workers fail", 4, "orchestrated");
+  const o5d = await poll(o5.id, (l) => terminal(l.status));
+  check("orchestrated: completes even when workers fail", o5d.status === "completed", o5d.status);
+  check("orchestrated: the failed workers are recorded",
+    work(o5d.runs).length === 2 && work(o5d.runs).every((w: any) => w.status === "failed"),
+    `workers=${work(o5d.runs).map((w: any) => w.status).join(",")}`);
+  check("orchestrated: orchestrator rounds still completed",
+    orch(o5d.runs).every((o: any) => o.status === "completed"));
+
+  // O6. pause mid-flight then resume, orchestrated control flow
+  const o6 = await start("[steps=8][fanout=1] pausable orchestrated", 8, "orchestrated");
+  await poll(o6.id, (l) => l.iterations >= 2 || terminal(l.status), 25000);
+  await call("POST", `/api/loops/${o6.id}/pause`);
+  const o6p = await poll(o6.id, (l) => l.status === "paused" || l.status === "completed");
+  check("orchestrated pause: reaches paused", o6p.status === "paused", o6p.status);
+  check("orchestrated pause: paused mid-flight (2<=rounds<8)",
+    o6p.iterations >= 2 && o6p.iterations < 8, `iters=${o6p.iterations}`);
+  await call("POST", `/api/loops/${o6.id}/resume`, { extraIterations: 1 });
+  const o6done = await poll(o6.id, (l) => l.status === "completed" || l.status === "failed");
+  check("orchestrated pause: resumes and completes all 8 rounds",
+    o6done.status === "completed" && o6done.iterations === 8, `${o6done.status} iters=${o6done.iterations}`);
 
   // --- Neon-level integrity check -----------------------------------------
   const runRows = (await sql`

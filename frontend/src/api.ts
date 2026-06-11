@@ -1,4 +1,4 @@
-import type { Loop, LoopDetail, Run } from "./types.ts";
+import type { Loop, LoopDetail, LoopMode, Run } from "./types.ts";
 
 // In Retool this gets swapped for a Retool resource; in dev it points at the
 // local Bun backend.
@@ -17,10 +17,10 @@ export const api = {
   listLoops: () => http<Loop[]>("/api/loops"),
   getLoop: (id: string) => http<LoopDetail>(`/api/loops/${id}`),
   listRuns: () => http<Run[]>("/api/runs"),
-  startLoop: (goal: string, maxIterations: number) =>
+  startLoop: (goal: string, maxIterations: number, mode: LoopMode) =>
     http<Loop>("/api/loops", {
       method: "POST",
-      body: JSON.stringify({ goal, maxIterations }),
+      body: JSON.stringify({ goal, maxIterations, mode }),
     }),
   resumeLoop: (id: string, extraIterations: number) =>
     http<Loop>(`/api/loops/${id}/resume`, {

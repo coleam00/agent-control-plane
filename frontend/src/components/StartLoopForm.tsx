@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { api } from "../api.ts";
+import type { LoopMode } from "../types.ts";
 
 export function StartLoopForm({ onStarted }: { onStarted: () => void }) {
   const [goal, setGoal] = useState("");
   const [maxIterations, setMaxIterations] = useState(5);
+  const [mode, setMode] = useState<LoopMode>("orchestrated");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -11,7 +13,7 @@ export function StartLoopForm({ onStarted }: { onStarted: () => void }) {
     if (!goal.trim() || busy) return;
     setBusy(true);
     try {
-      await api.startLoop(goal.trim(), maxIterations);
+      await api.startLoop(goal.trim(), maxIterations, mode);
       setGoal("");
       onStarted();
     } finally {
@@ -27,8 +29,15 @@ export function StartLoopForm({ onStarted }: { onStarted: () => void }) {
         value={goal}
         onChange={(e) => setGoal(e.target.value)}
       />
+      <label className="mode">
+        mode
+        <select value={mode} onChange={(e) => setMode(e.target.value as LoopMode)}>
+          <option value="orchestrated">orchestrated (agents prompting agents)</option>
+          <option value="ralph">ralph (single-agent loop)</option>
+        </select>
+      </label>
       <label className="iter">
-        max iterations
+        max rounds
         <input
           type="number"
           min={1}

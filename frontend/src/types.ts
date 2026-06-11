@@ -7,10 +7,14 @@ export type LoopStatus =
   | "failed"
   | "stopped";
 
+export type LoopMode = "orchestrated" | "ralph";
+export type RunRole = "orchestrator" | "worker";
+
 export interface Loop {
   id: string;
   goal: string;
   status: LoopStatus;
+  mode: LoopMode;
   max_iterations: number;
   iterations: number;
   model: string | null;
@@ -25,6 +29,9 @@ export interface Run {
   loop_id: string | null;
   iteration: number;
   task: string;
+  role: RunRole;
+  parent_run_id: string | null;
+  reasoning: string | null;
   status: "running" | "completed" | "failed";
   output: string | null;
   model: string | null;

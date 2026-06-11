@@ -149,61 +149,97 @@ export async function runPiTask(
 }
 
 // Fast, deterministic stand-in for a real Pi run, used only by the integration
-// tests (ACP_FAKE_PI=1). It persists a counter in the workspace (proving
-// cross-iteration state on disk, the Ralph pattern) and reads control tokens
-// out of the prompt: `[steps=N]` finishes after N iterations, `[fail]` errors.
+// tests (ACP_FAKE_PI=1). It reads control tokens out of the prompt and keeps a
+// counter on disk (proving cross-iteration state). Tokens (set in the loop
+// goal): `[steps=N]` finish after N rounds, `[fanout=K]` K parallel workers per
+// round, `[fail]`/`[orchfail]` Pi-level failure, `[workerfail]` worker errors
+// (non-fatal), `[toolerr]` a recovered tool error. It detects which role it is
+// playing from the prompt, so orchestrated and ralph loops both work.
 async function fakePiRun(prompt: string, opts: PiRunOptions): Promise<PiResult> {
-  opts.onEvent?.({ type: "tool_start", detail: { toolName: "bash" } });
+  if (/You are the orchestrator agent/.test(prompt)) return fakeOrchestrator(prompt, opts);
+  if (/You are a worker agent/.test(prompt)) return fakeWorker(prompt, opts);
+  return fakeRalph(prompt, opts);
+}
 
-  const counterPath = join(opts.cwd, "_fake_count.txt");
+async function bumpCounter(cwd: string, file: string): Promise<number> {
+  const path = join(cwd, file);
   let count = 0;
   try {
-    count = Number((await Bun.file(counterPath).text()).trim()) || 0;
+    count = Number((await Bun.file(path).text()).trim()) || 0;
   } catch {
     count = 0;
   }
   count += 1;
-  await Bun.write(counterPath, String(count));
+  await Bun.write(path, String(count));
+  return count;
+}
 
+function fakeResult(output: string, n: number, isError = false, errorDetail = ""): PiResult {
+  return {
+    output,
+    costUsd: 0,
+    inputTokens: 100 + n,
+    outputTokens: 20,
+    numTurns: 1,
+    sessionId: `fake-${n}`,
+    isError,
+    errorDetail,
+  };
+}
+
+async function fakeRalph(prompt: string, opts: PiRunOptions): Promise<PiResult> {
+  opts.onEvent?.({ type: "tool_start", detail: { toolName: "bash" } });
+  const count = await bumpCounter(opts.cwd, "_fake_count.txt");
   opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: false } });
-  // Simulate a tool call that errored but the agent recovered from (e.g. a
-  // failing test it then fixed). This must NOT fail the run.
   if (/\[toolerr\]/.test(prompt)) {
     opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: true } });
   }
   await new Promise((r) => setTimeout(r, 120));
+  if (/\[fail\]/.test(prompt)) return fakeResult("", count, true, "simulated Pi failure");
 
-  if (/\[fail\]/.test(prompt)) {
-    return {
-      output: "",
-      costUsd: 0,
-      inputTokens: 10,
-      outputTokens: 0,
-      numTurns: 1,
-      sessionId: `fake-${count}`,
-      isError: true,
-      errorDetail: "simulated Pi failure",
-    };
-  }
-
-  const stepsMatch = prompt.match(/\[steps=(\d+)\]/);
-  const steps = stepsMatch ? Number(stepsMatch[1]) : 1;
+  const steps = Number(prompt.match(/\[steps=(\d+)\]/)?.[1] ?? 1);
   const done = count >= steps;
   const output = `Fake increment ${count} of ${steps}. LOOP_STATUS: ${done ? "DONE" : "CONTINUE"}`;
-
   opts.onEvent?.({ type: "text", detail: { preview: output } });
   opts.onEvent?.({ type: "turn_end", detail: { turn: 1 } });
+  return fakeResult(output, count);
+}
 
-  return {
-    output,
-    costUsd: 0,
-    inputTokens: 100 + count,
-    outputTokens: 20,
-    numTurns: 1,
-    sessionId: `fake-${count}`,
-    isError: false,
-    errorDetail: "",
-  };
+async function fakeOrchestrator(prompt: string, opts: PiRunOptions): Promise<PiResult> {
+  opts.onEvent?.({ type: "tool_start", detail: { toolName: "read" } });
+  const round = await bumpCounter(opts.cwd, "_orch_count.txt");
+  opts.onEvent?.({ type: "tool_end", detail: { toolName: "read", isError: false } });
+  await new Promise((r) => setTimeout(r, 100));
+  if (/\[orchfail\]/.test(prompt)) return fakeResult("", round, true, "simulated orchestrator failure");
+
+  const steps = Number(prompt.match(/\[steps=(\d+)\]/)?.[1] ?? 1);
+  const fanout = Math.max(1, Number(prompt.match(/\[fanout=(\d+)\]/)?.[1] ?? 1));
+  let decision: string;
+  if (round >= steps) {
+    decision = `{"status": "done", "reasoning": "fake: goal met after ${round} rounds", "tasks": []}`;
+  } else {
+    const tasks = Array.from({ length: fanout }, (_, i) => `fake task ${round}.${i + 1}`);
+    decision = `{"status": "continue", "reasoning": "fake round ${round}", "tasks": ${JSON.stringify(tasks)}}`;
+  }
+  const output = `Round ${round} decision.\n\`\`\`json\n${decision}\n\`\`\``;
+  opts.onEvent?.({ type: "text", detail: { preview: output.slice(0, 120) } });
+  opts.onEvent?.({ type: "turn_end", detail: { turn: 1 } });
+  return fakeResult(output, round);
+}
+
+async function fakeWorker(prompt: string, opts: PiRunOptions): Promise<PiResult> {
+  opts.onEvent?.({ type: "tool_start", detail: { toolName: "bash" } });
+  const n = await bumpCounter(opts.cwd, "_work_count.txt");
+  opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: false } });
+  if (/\[toolerr\]/.test(prompt)) {
+    opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: true } });
+  }
+  await new Promise((r) => setTimeout(r, 100));
+  if (/\[workerfail\]/.test(prompt)) return fakeResult("", n, true, "simulated worker failure");
+  const output = `Worker completed its task (#${n}).`;
+  opts.onEvent?.({ type: "text", detail: { preview: output } });
+  opts.onEvent?.({ type: "turn_end", detail: { turn: 1 } });
+  return fakeResult(output, n);
 }
 
 function handleEvent(

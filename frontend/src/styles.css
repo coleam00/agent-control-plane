@@ -315,3 +315,111 @@ button.danger:hover:not(:disabled) {
 .muted {
   color: var(--muted);
 }
+
+/* ---- mode + orchestrator/worker view ---- */
+
+.mode,
+.iter {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  color: var(--muted);
+  gap: 2px;
+}
+
+.mode select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  color: var(--text);
+}
+
+.mode-tag {
+  color: var(--violet);
+  font-weight: 600;
+}
+
+.rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.round {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 8px 10px;
+}
+
+.orch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.orch.failed .orch-reason {
+  color: var(--red);
+}
+
+.round-num {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.orch-reason {
+  color: var(--text);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workers {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 18px;
+  border-left: 2px solid var(--blue-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.worker {
+  display: grid;
+  grid-template-columns: 70px 1fr 90px;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.worker.failed .worker-task {
+  color: var(--red);
+}
+
+.worker-task {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.badge.orchestrator {
+  background: rgba(124, 92, 255, 0.18);
+  color: #b9a8ff;
+}
+
+.badge.worker {
+  background: var(--blue-dim);
+  color: #b9c8ff;
+}
