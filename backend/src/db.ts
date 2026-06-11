@@ -112,6 +112,22 @@ export async function getLoop(id: string): Promise<Loop | null> {
   return rows[0] ?? null;
 }
 
+// On startup, no loop is actually executing (the in-process controllers do not
+// survive a restart). Any loop still marked 'running' or 'pending' was cut off
+// mid-run, so flag it interrupted instead of leaving a zombie. Intentional wait
+// states ('paused', 'awaiting_approval') are preserved so resume still works.
+export async function reconcileInterruptedLoops(): Promise<number> {
+  const rows = (await sql`
+    update loops
+    set status = 'failed',
+        last_error = 'interrupted by a server restart (in-flight run state does not survive a restart)',
+        updated_at = now()
+    where status in ('running', 'pending')
+    returning id
+  `) as Array<{ id: string }>;
+  return rows.length;
+}
+
 export async function listLoops(limit = 50): Promise<Loop[]> {
   return (await sql`
     select * from loops order by updated_at desc limit ${limit}

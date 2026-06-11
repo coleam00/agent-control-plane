@@ -10,7 +10,7 @@
 // resume-while-running being a no-op. Creates its own loops and deletes them at
 // the end (cascades), leaving any pre-existing data untouched.
 import { resolve } from "node:path";
-import { sql } from "./db.ts";
+import { reconcileInterruptedLoops, sql } from "./db.ts";
 
 const BASE = process.env.ACP_BASE ?? "http://localhost:8787";
 const created = new Set<string>();
@@ -307,6 +307,23 @@ async function main() {
   const o6done = await poll(o6.id, (l) => l.status === "completed" || l.status === "failed");
   check("orchestrated pause: resumes and completes all 8 rounds",
     o6done.status === "completed" && o6done.iterations === 8, `${o6done.status} iters=${o6done.iterations}`);
+
+  // --- Startup reconciliation: orphaned 'running' loops are flagged ---------
+  // (run last, when no other test loop is in flight, so it only catches the orphan)
+  const orphanRows = (await sql`
+    insert into loops (goal, mode, max_iterations, model, workspace, status)
+    values ('orphan reconcile test', 'orchestrated', 5, 'test', 'x', 'running')
+    returning id
+  `) as Array<{ id: string }>;
+  const orphanId = orphanRows[0]!.id;
+  created.add(orphanId);
+  await reconcileInterruptedLoops();
+  const afterRows = (await sql`
+    select status, last_error from loops where id = ${orphanId}
+  `) as Array<{ status: string; last_error: string | null }>;
+  check("reconcile: orphaned running loop is flagged failed (interrupted)",
+    afterRows[0]?.status === "failed" && /interrupted/i.test(afterRows[0]?.last_error ?? ""),
+    `${afterRows[0]?.status}`);
 
   // --- Neon-level integrity check -----------------------------------------
   const runRows = (await sql`

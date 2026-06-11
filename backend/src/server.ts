@@ -11,6 +11,7 @@ import {
   listLoops,
   listRuns,
   listRunsForLoop,
+  reconcileInterruptedLoops,
 } from "./db.ts";
 import { pauseLoop, resumeLoop, startLoop, stopLoop } from "./loop.ts";
 import { clampInt } from "./util.ts";
@@ -76,6 +77,11 @@ app.get("/api/runs/:id", async (c) => {
 
 // Ensure the schema exists before serving (idempotent).
 await initSchema();
+// Reconcile any loop left mid-run by a previous crash/restart (no zombies).
+const reconciled = await reconcileInterruptedLoops();
+if (reconciled > 0) {
+  console.log(`Reconciled ${reconciled} interrupted loop(s) from a previous run.`);
+}
 console.log(`Agent Control Plane API on http://localhost:${config.port}`);
 console.log(`Pi model: ${config.piModel}  ·  Pi binary: ${config.piBin}`);
 
