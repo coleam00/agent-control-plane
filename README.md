@@ -1,23 +1,34 @@
 # Agent Control Plane
 
-A control plane for long-running agent loops. You give it a goal, it runs **Pi**
-(a provider-independent coding agent, here on Kimi) in a loop, making one small
-verifiable increment per iteration. Every run, its output, cost, and token usage
-land in **Neon** (serverless Postgres) so you can see what your agents did while
-you stepped away, not just what they are doing right now. A **React** dashboard
-shows the live loop plus the full run history, and gets deployed with **Retool**
-for hosting, a managed Neon connection, a human approval gate, and an audit trail.
+A control plane for long-running agent loops, built on **Pi** (a provider-
+independent coding agent, here on Kimi) with run history in **Neon** (serverless
+Postgres) and a **React** dashboard. You give it a goal; it runs a loop until the
+goal is met, recording every run so you can see what your agents did while you
+stepped away, not just what they are doing right now.
 
-This is the "Ralph" pattern (a loop that feeds an agent and lets state live on
-disk and in a database, not in the model's context) made observable, and a face
-on the autonomous build loops the second brain already runs headless.
+Two modes:
+
+- **orchestrated (default): agents prompting agents.** Each round an LLM
+  **orchestrator** agent inspects progress (with read-only tools) and decides
+  either that the goal is done or what the next task(s) are. It writes the
+  prompts that **worker** agents then execute (with full tools). Independent
+  tasks fan out and run in parallel. The orchestrator makes the continue/done
+  call, not a regex.
+- **ralph: the classic single-agent loop.** A fixed prompt re-runs one worker
+  agent each round; a sentinel in its output (`LOOP_STATUS: DONE`) ends the loop.
+  State lives on disk and in Neon, so every round starts with a fresh context.
+
+Every run (orchestrator or worker) lands in Neon with its role, output, tokens,
+status, and a link to the orchestrator decision that spawned it. The dashboard
+shows the live loop plus the full history, and gets deployed with **Retool** for
+hosting, a managed Neon connection, a human approval gate, and an audit trail.
 
 ```
-Pi loop (Bun + TS backend)        Neon (serverless Postgres)        React dashboard -> Retool
--------------------------         --------------------------        -----------------------
-runs `pi --mode json` per     ->  loops / runs / run_events    ->   live panel + run history
-iteration, captures output,       (status, output, cost,             read from Neon via the API;
-cost, tokens, writes to Neon      tokens, timestamps)                Retool adds host + gate + RBAC
+orchestrated round:                         Neon                      React dashboard -> Retool
+orchestrator agent decides  ──┐      loops / runs / run_events         live: orchestrator decision
+   ├─ done -> stop            │  ->  (role: orchestrator|worker,   ->  + the workers it spawned;
+   └─ tasks -> worker agents ─┘      parent_run_id, reasoning,         full run history; the human
+      (fan out in parallel)          output, tokens, status)           resume gate
 ```
 
 ## Layout
@@ -26,10 +37,11 @@ cost, tokens, writes to Neon      tokens, timestamps)                Retool adds
 |------|------|
 | `backend/` | Bun + TypeScript. Drives the Pi loop, persists to Neon, serves the JSON API (Hono). |
 | `backend/src/pi.ts` | Spawns `pi --mode json --print` and parses its event stream. |
-| `backend/src/loop.ts` | The loop orchestrator (Ralph pattern + the human resume gate). |
+| `backend/src/loop.ts` | The loop driver: orchestrated (orchestrator + workers) and ralph modes, the decision parser, fan-out, and the human resume gate. |
 | `backend/src/db.ts` | Neon access + the `loops` / `runs` / `run_events` schema. |
-| `backend/migrations/001_init.sql` | Schema. Mirrors Archon's run model. |
-| `frontend/` | Vite + React + TS dashboard. The artifact imported into Retool. |
+| `backend/migrations/` | `001_init.sql` (base schema, mirrors Archon's run model) + `002_orchestrator.sql` (mode, role, parent_run_id, reasoning). |
+| `backend/src/itest.ts` | 65-check integration suite (`bun run itest`, needs the server in `ACP_FAKE_PI=1` mode). |
+| `frontend/` | Vite + React + TS dashboard (mode selector, orchestrator/worker view). The artifact imported into Retool. |
 
 ## Prerequisites
 
@@ -57,12 +69,20 @@ bun install         # or npm install
 bun run dev         # dashboard on http://localhost:5173
 ```
 
-Start a loop from the dashboard (or `curl`):
+Start a loop from the dashboard (or `curl`). `mode` defaults to `orchestrated`:
 
 ```bash
 curl -s localhost:8787/api/loops -X POST \
   -H 'content-type: application/json' \
-  -d '{"goal":"Build a small CLI todo app in Python with pytest tests","maxIterations":5}'
+  -d '{"goal":"Build a small CLI todo app in Python with pytest tests","maxIterations":5,"mode":"orchestrated"}'
+```
+
+Run the tests (start the server with `ACP_FAKE_PI=1` in another terminal first,
+so the suite is fast and deterministic):
+
+```bash
+bun run test     # unit tests (clampInt, etc.)
+bun run itest    # 65-check integration suite against the running server
 ```
 
 ## API
@@ -72,7 +92,7 @@ curl -s localhost:8787/api/loops -X POST \
 | GET | `/api/health` | liveness + active model |
 | GET | `/api/loops` | all loops |
 | GET | `/api/loops/:id` | one loop + its runs |
-| POST | `/api/loops` | start a loop `{goal, maxIterations}` |
+| POST | `/api/loops` | start a loop `{goal, maxIterations, mode?}` (mode: `orchestrated` default, or `ralph`) |
 | POST | `/api/loops/:id/resume` | the human gate: continue past the cap `{extraIterations}` |
 | POST | `/api/loops/:id/pause` | pause after the current run |
 | POST | `/api/loops/:id/stop` | stop the loop |
