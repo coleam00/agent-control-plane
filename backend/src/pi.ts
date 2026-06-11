@@ -55,6 +55,10 @@ export async function runPiTask(
   prompt: string,
   opts: PiRunOptions,
 ): Promise<PiResult> {
+  // Deterministic test mode: skip the real agent, simulate an increment fast.
+  // Gated on ACP_FAKE_PI so it can never fire in normal operation.
+  if (process.env.ACP_FAKE_PI === "1") return fakePiRun(prompt, opts);
+
   const model = opts.model ?? config.piModel;
   const tools = opts.tools ?? config.piTools;
   const timeoutS = opts.timeoutS ?? config.piRunTimeoutS;
@@ -144,6 +148,64 @@ export async function runPiTask(
   return result;
 }
 
+// Fast, deterministic stand-in for a real Pi run, used only by the integration
+// tests (ACP_FAKE_PI=1). It persists a counter in the workspace (proving
+// cross-iteration state on disk, the Ralph pattern) and reads control tokens
+// out of the prompt: `[steps=N]` finishes after N iterations, `[fail]` errors.
+async function fakePiRun(prompt: string, opts: PiRunOptions): Promise<PiResult> {
+  opts.onEvent?.({ type: "tool_start", detail: { toolName: "bash" } });
+
+  const counterPath = join(opts.cwd, "_fake_count.txt");
+  let count = 0;
+  try {
+    count = Number((await Bun.file(counterPath).text()).trim()) || 0;
+  } catch {
+    count = 0;
+  }
+  count += 1;
+  await Bun.write(counterPath, String(count));
+
+  opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: false } });
+  // Simulate a tool call that errored but the agent recovered from (e.g. a
+  // failing test it then fixed). This must NOT fail the run.
+  if (/\[toolerr\]/.test(prompt)) {
+    opts.onEvent?.({ type: "tool_end", detail: { toolName: "bash", isError: true } });
+  }
+  await new Promise((r) => setTimeout(r, 120));
+
+  if (/\[fail\]/.test(prompt)) {
+    return {
+      output: "",
+      costUsd: 0,
+      inputTokens: 10,
+      outputTokens: 0,
+      numTurns: 1,
+      sessionId: `fake-${count}`,
+      isError: true,
+      errorDetail: "simulated Pi failure",
+    };
+  }
+
+  const stepsMatch = prompt.match(/\[steps=(\d+)\]/);
+  const steps = stepsMatch ? Number(stepsMatch[1]) : 1;
+  const done = count >= steps;
+  const output = `Fake increment ${count} of ${steps}. LOOP_STATUS: ${done ? "DONE" : "CONTINUE"}`;
+
+  opts.onEvent?.({ type: "text", detail: { preview: output } });
+  opts.onEvent?.({ type: "turn_end", detail: { turn: 1 } });
+
+  return {
+    output,
+    costUsd: 0,
+    inputTokens: 100 + count,
+    outputTokens: 20,
+    numTurns: 1,
+    sessionId: `fake-${count}`,
+    isError: false,
+    errorDetail: "",
+  };
+}
+
 function handleEvent(
   evt: Record<string, unknown>,
   result: PiResult,
@@ -160,7 +222,11 @@ function handleEvent(
       break;
     }
     case "tool_execution_end": {
-      if (evt.isError) result.isError = true;
+      // A single errored tool call (a failing test, a nonzero command) is
+      // normal agent behavior, the agent typically recovers and retries. It
+      // must NOT fail the whole run. Surface it as an event for the dashboard,
+      // but only genuine Pi-level failures (stopReason error, nonzero exit,
+      // timeout) mark result.isError below.
       emit("tool_end", { toolName: evt.toolName, isError: !!evt.isError });
       break;
     }

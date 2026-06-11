@@ -28,6 +28,7 @@ import { runPiTask } from "./pi.ts";
 // status; this just lets a running loop notice a pause request between runs.
 interface Control {
   pauseRequested: boolean;
+  stopRequested: boolean;
   running: boolean;
 }
 const controls = new Map<string, Control>();
@@ -104,7 +105,7 @@ export async function pauseLoop(id: string): Promise<Loop | null> {
 
 export async function stopLoop(id: string): Promise<Loop | null> {
   const ctl = controls.get(id);
-  if (ctl) ctl.pauseRequested = true;
+  if (ctl) ctl.stopRequested = true;
   await updateLoop(id, { status: "stopped" });
   return await getLoop(id);
 }
@@ -116,7 +117,7 @@ async function sqlSetMaxIterations(id: string, value: number): Promise<void> {
 }
 
 async function runLoop(id: string): Promise<void> {
-  const ctl: Control = { pauseRequested: false, running: true };
+  const ctl: Control = { pauseRequested: false, stopRequested: false, running: true };
   controls.set(id, ctl);
   try {
     await updateLoop(id, { status: "running" });
@@ -124,7 +125,7 @@ async function runLoop(id: string): Promise<void> {
     while (true) {
       const loop = await getLoop(id);
       if (!loop) break;
-      if (loop.status === "stopped") break;
+      if (loop.status === "stopped" || ctl.stopRequested) break;
 
       if (ctl.pauseRequested) {
         await updateLoop(id, { status: "paused" });
@@ -173,12 +174,21 @@ async function runLoop(id: string): Promise<void> {
 
       await updateLoop(id, { iterations: iteration });
 
+      // A stop issued while this iteration was running wins over the run's
+      // outcome (stopLoop already set status to 'stopped'); never let a late
+      // completed/failed transition clobber the user's stop.
+      if (ctl.stopRequested) break;
       if (result.isError) {
         await updateLoop(id, { status: "failed", last_error: result.errorDetail });
         break;
       }
       if (/LOOP_STATUS:\s*DONE/i.test(result.output)) {
         await updateLoop(id, { status: "completed" });
+        break;
+      }
+      // A pause issued mid-iteration takes effect now (there is more work to do).
+      if (ctl.pauseRequested) {
+        await updateLoop(id, { status: "paused" });
         break;
       }
       // else CONTINUE: next iteration.
