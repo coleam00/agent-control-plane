@@ -38,7 +38,12 @@ export function App() {
     ? runs.filter((r) => r.loop_id === active.id).sort((a, b) => a.iteration - b.iteration)
     : [];
 
-  const totalCost = runs.reduce((sum, r) => sum + (r.cost_usd ?? 0), 0);
+  // Pi on a Kimi subscription is flat-rate, so cost.total is always 0.
+  // Tokens are the real usage signal, so that's what the dashboard surfaces.
+  const totalTokens = runs.reduce(
+    (sum, r) => sum + (r.input_tokens ?? 0) + (r.output_tokens ?? 0),
+    0,
+  );
 
   return (
     <div className="app">
@@ -52,7 +57,7 @@ export function App() {
         <div className="stats">
           <Stat label="Loops" value={String(loops.length)} />
           <Stat label="Runs" value={String(runs.length)} />
-          <Stat label="Total cost" value={`$${totalCost.toFixed(4)}`} />
+          <Stat label="Total tokens" value={totalTokens.toLocaleString()} />
         </div>
       </header>
 

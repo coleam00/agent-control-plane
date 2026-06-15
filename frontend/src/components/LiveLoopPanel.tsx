@@ -24,7 +24,11 @@ export function LiveLoopPanel({
     }
   };
 
-  const cost = runs.reduce((s, r) => s + (r.cost_usd ?? 0), 0);
+  // Kimi is flat-rate (cost is always 0), so the loop summary surfaces tokens.
+  const loopTokens = runs.reduce(
+    (s, r) => s + (r.input_tokens ?? 0) + (r.output_tokens ?? 0),
+    0,
+  );
   const canResume = ["awaiting_approval", "paused"].includes(loop.status);
   const canPause = loop.status === "running";
 
@@ -35,7 +39,8 @@ export function LiveLoopPanel({
           <div className="goal">{loop.goal}</div>
           <div className="meta">
             <StatusPill status={loop.status} /> · <span className="mode-tag">{loop.mode}</span> ·
-            round {loop.iterations}/{loop.max_iterations} · {loop.model} · ${cost.toFixed(4)}
+            round {loop.iterations}/{loop.max_iterations} · {loop.model} ·{" "}
+            {loopTokens.toLocaleString()} tokens
           </div>
         </div>
         <div className="actions">

@@ -7,3 +7,6 @@ bun.lockb
 workspaces/
 .DS_Store
 *.tsbuildinfo
+
+# Build artifacts / local bundles (e.g. the Retool import zip)
+*.zip

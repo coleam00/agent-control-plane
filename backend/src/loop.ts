@@ -87,9 +87,16 @@ ${recent}
 
 Decide ONE of:
 - The goal is fully met and verified  ->  status "done".
-- There is more to do  ->  status "continue", and give 1 to ${MAX_FANOUT} concrete, self-contained next tasks. Each task is a single instruction a coding agent can carry out on its own. Only give more than one task if they are INDEPENDENT and can run in parallel without touching the same files. Prefer a single task when unsure.
+- There is more to do  ->  status "continue", with 1 to ${MAX_FANOUT} concrete next tasks.
 
-This is round ${iteration} of at most ${loop.max_iterations}. Keep moving and do not redo finished work.
+How to break the work down:
+- A substantial goal is built over SEVERAL rounds, layer by layer; that is expected and good. Each round, advance the next layer of work, then let the following round build on what now exists. Do NOT try to finish everything in one round.
+- Maximize parallelism within a round: when the work in front of you has multiple INDEPENDENT pieces that do not touch the same files (for example separate modules, or one test file per module), give EACH piece its own task so the workers run in parallel. Do NOT bundle independent pieces into a single task.
+- Build in dependency order across rounds: do not dispatch a task whose prerequisites do not exist yet; wait for the round after they are built (e.g. build the modules first, then the CLI that imports them, then the tests, then the docs).
+- Keep each task small and self-contained. Do not redo finished work.
+- Only call "done" once the code exists, runs, and is tested and documented as the goal requires.
+
+This is round ${iteration} of at most ${loop.max_iterations}.
 
 End your reply with a single JSON object on its own line, inside a fenced code block, exactly in this shape:
 \`\`\`json

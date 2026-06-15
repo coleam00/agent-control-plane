@@ -1,6 +1,6 @@
 -- Agent Control Plane schema (Neon / Postgres).
 -- Mirrors the shape of the Archon run model (remote_agent_workflow_runs /
--- _events) so the dashboard lines up with the harness the second brain runs.
+-- _events) so the dashboard lines up with that harness.
 
 create table if not exists loops (
   id             uuid primary key default gen_random_uuid(),

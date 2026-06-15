@@ -142,14 +142,16 @@ export async function updateLoop(
 ): Promise<void> {
   // Only a small, fixed set of columns is ever updated, so explicit branches
   // keep the queries parameterized and injection-proof.
-  if (fields.status !== undefined) {
+  if (fields.status !== undefined && fields.last_error !== undefined) {
+    // One atomic write: a reader must never see status='failed' without its error.
+    await sql`update loops set status = ${fields.status}, last_error = ${fields.last_error}, updated_at = now() where id = ${id}`;
+  } else if (fields.status !== undefined) {
     await sql`update loops set status = ${fields.status}, updated_at = now() where id = ${id}`;
+  } else if (fields.last_error !== undefined) {
+    await sql`update loops set last_error = ${fields.last_error}, updated_at = now() where id = ${id}`;
   }
   if (fields.iterations !== undefined) {
     await sql`update loops set iterations = ${fields.iterations}, updated_at = now() where id = ${id}`;
-  }
-  if (fields.last_error !== undefined) {
-    await sql`update loops set last_error = ${fields.last_error}, updated_at = now() where id = ${id}`;
   }
 }
 

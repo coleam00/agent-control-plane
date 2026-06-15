@@ -1,7 +1,7 @@
 // Pi driver. Runs the `pi` coding agent headless in JSON mode and parses its
-// event stream. This mirrors the proven invocation in the second brain's
-// pi_sdk_compat.py (pi --mode json --print, LF-delimited JSON events), so the
-// control plane runs Pi exactly the way the rest of the system already does.
+// event stream. It uses the proven headless invocation (pi --mode json --print,
+// LF-delimited JSON events), so the control plane drives Pi the same way you
+// would from any other script.
 //
 // Verified against pi 0.79.1. The event contract:
 //   {type:"session", id}
