@@ -2,7 +2,7 @@
 
 > Long-running agent loops you can actually watch. Give it a goal; agents prompt agents until it's done; every run is recorded so you can see what they did while you stepped away.
 
-A control plane for long-running agent loops, built on **Pi** (a provider-independent coding agent, here on Kimi) with run history in **Neon** (serverless Postgres) and a **React** dashboard. You give it a goal; it runs a loop until the goal is met, recording every run so you can see what your agents did, not just what they are doing right now.
+A control plane for long-running agent loops, built on **Pi** (a provider-independent coding agent) with run history in **Neon** (serverless Postgres) and a **React** dashboard. You give it a goal; it runs a loop until the goal is met, recording every run so you can see what your agents did, not just what they are doing right now. Because it drives Pi rather than any one model API, the same loop runs on Claude, GPT, Gemini, Kimi, or a local model (see [Models and providers](#models-and-providers)).
 
 ## How it works
 
@@ -23,6 +23,38 @@ orchestrator agent decides  ──┐      loops / runs / run_events         liv
       (fan out in parallel)          output, tokens, status)           resume gate
 ```
 
+## Models and providers
+
+The control plane never talks to a model directly. It drives **Pi**, and Pi resolves the model and provider from its own auth. So the whole loop (orchestrator and workers) runs on whatever Pi supports: Claude, GPT, Gemini, Kimi, or a local model. Switching is two steps and zero code changes.
+
+**1. Authenticate Pi for the provider you want** (once). Either a subscription login (run `pi`, then `/login` -> Claude Pro/Max, ChatGPT Plus/Pro, or GitHub Copilot) or an API key in your environment:
+
+| Provider | Env var |
+|----------|---------|
+| Anthropic / Claude | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google Gemini | `GEMINI_API_KEY` |
+| Kimi (Moonshot) | `KIMI_API_KEY` |
+
+Pi also supports DeepSeek, Mistral, Groq, xAI, OpenRouter, Azure OpenAI, Amazon Bedrock, Vertex AI, and local runtimes (Ollama, vLLM, LM Studio) via `~/.pi/agent/models.json`. See [Pi's provider docs](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md).
+
+**2. Set `PI_MODEL`** in `backend/.env` to a `provider/model` reference:
+
+```bash
+PI_MODEL=anthropic/claude-sonnet-4     # Claude
+PI_MODEL=openai/gpt-4o                  # OpenAI
+PI_MODEL=kimi-coding/kimi-for-coding    # Kimi (the default)
+PI_MODEL=ollama/llama3.1:8b             # a local model
+```
+
+Run `pi` and use `/model` to see the exact model ids your auth exposes. Sanity-check any model before wiring it in:
+
+```bash
+pi --mode json --print --no-session --model anthropic/claude-sonnet-4 -p "say PI OK"
+```
+
+> **Usage signal:** metered providers (Anthropic, OpenAI, ...) report a real per-run cost; flat-rate subscriptions (like Kimi) report `$0`. The dashboard surfaces **tokens**, which are meaningful on every provider, and the raw `cost_usd` is still recorded per run.
+
 ## Project layout
 
 | Path | What |
@@ -38,14 +70,15 @@ orchestrator agent decides  ──┐      loops / runs / run_events         liv
 ## Prerequisites
 
 - [Bun](https://bun.sh) (backend runtime).
-- [Pi](https://pi.dev) installed and on your PATH (`pi --version`), authed for Kimi (`KIMI_API_KEY` or `~/.pi/agent/auth.json`). Confirm with `pi --mode json --print --no-session -p "say PI OK"`.
+- [Pi](https://pi.dev) installed and on your PATH (`pi --version`), authed for the provider you want to run on (see [Models and providers](#models-and-providers)). Confirm with `pi --mode json --print --no-session -p "say PI OK"`.
 - A [Neon](https://neon.tech) project. Copy its pooled connection string.
 
 ## Setup
 
 ```bash
 cp .env.example .env
-# edit .env: paste DATABASE_URL (Neon), confirm PI_MODEL=kimi-coding/kimi-for-coding
+# edit .env: paste DATABASE_URL (Neon). PI_MODEL defaults to Kimi; set it to any
+# Pi model ref to run on Claude, GPT, Gemini, a local model, etc. (see below).
 
 cd backend
 bun install
