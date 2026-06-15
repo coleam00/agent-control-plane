@@ -1,6 +1,17 @@
 import { useState } from "react";
 import type { Run, RunRole } from "../types.ts";
 
+const ROLE_OPTIONS: Array<{ value: RunRole; label: string }> = [
+  { value: "orchestrator", label: "Orchestrator" },
+  { value: "worker", label: "Worker" },
+];
+
+const STATUS_OPTIONS: Array<{ value: Run["status"]; label: string }> = [
+  { value: "running", label: "Running" },
+  { value: "completed", label: "Completed" },
+  { value: "failed", label: "Failed" },
+];
+
 export function RunHistoryTable({ runs }: { runs: Run[] }) {
   const [roleFilter, setRoleFilter] = useState<"" | RunRole>("");
   const [statusFilter, setStatusFilter] = useState<"" | Run["status"]>("");
@@ -24,14 +35,11 @@ export function RunHistoryTable({ runs }: { runs: Run[] }) {
       <div className="history-filters">
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as "" | RunRole)}>
           <option value="">All roles</option>
-          <option value="orchestrator">Orchestrator</option>
-          <option value="worker">Worker</option>
+          {ROLE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "" | Run["status"])}>
           <option value="">All statuses</option>
-          <option value="running">Running</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
+          {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <input
           className="history-search"
@@ -97,6 +105,7 @@ function relFmt(iso: string): { label: string; title: string } {
   if (Number.isNaN(d.getTime())) return { label: iso, title: iso };
   const title = d.toLocaleString();
   const delta = Date.now() - d.getTime();
+  if (delta < 0) return { label: "just now", title };
   if (delta < 60_000) return { label: `${Math.floor(delta / 1000)}s ago`, title };
   if (delta < 3_600_000) return { label: `${Math.floor(delta / 60_000)}m ago`, title };
   if (delta < 86_400_000) return { label: `${Math.floor(delta / 3_600_000)}h ago`, title };
@@ -107,7 +116,7 @@ function duration(r: Run): string {
   if (r.completed_at == null) return "-";
   const ms = new Date(r.completed_at).getTime() - new Date(r.started_at).getTime();
   if (Number.isNaN(ms) || ms < 0) return "-";
-  const s = Math.round(ms / 1000);
+  const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
