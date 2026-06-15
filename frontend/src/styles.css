@@ -423,3 +423,44 @@ button.danger:hover:not(:disabled) {
   background: var(--blue-dim);
   color: #b9c8ff;
 }
+
+.history-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.history-filters select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.history-search {
+  flex: 1;
+  min-width: 160px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.history-search::placeholder {
+  color: var(--muted);
+}
+
+.history-filters select:focus,
+.history-filters select:hover,
+.history-search:focus,
+.history-search:hover {
+  outline: none;
+  border-color: var(--blue);
+}

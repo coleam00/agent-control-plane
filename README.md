@@ -65,7 +65,7 @@ pi --mode json --print --no-session --model anthropic/claude-sonnet-4 -p "say PI
 | `backend/src/db.ts` | Neon access + the `loops` / `runs` / `run_events` schema. |
 | `backend/migrations/` | `001_init.sql` (base schema) + `002_orchestrator.sql` (mode, role, parent_run_id, reasoning). |
 | `backend/src/itest.ts` | Integration suite (`bun run itest`, needs the server in `ACP_FAKE_PI=1` mode). |
-| `frontend/` | Vite + React + TS dashboard (mode selector, orchestrator/worker view). The artifact you deploy with Retool. |
+| `frontend/` | Vite + React + TS dashboard (mode selector, orchestrator/worker view, run history with filters and relative timestamps). The artifact you deploy with Retool. |
 
 ## Prerequisites
 
