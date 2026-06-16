@@ -3,7 +3,7 @@ import { api } from "./api.ts";
 import { LiveLoopPanel } from "./components/LiveLoopPanel.tsx";
 import { RunHistoryTable } from "./components/RunHistoryTable.tsx";
 import { StartLoopForm } from "./components/StartLoopForm.tsx";
-import type { Loop, LoopMode, Run } from "./types.ts";
+import type { Loop, LoopPrefill, Run } from "./types.ts";
 
 const POLL_MS = 2000;
 
@@ -11,11 +11,10 @@ export function App() {
   const [loops, setLoops] = useState<Loop[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [prefill, setPrefill] = useState<{
-    goal: string;
-    mode: LoopMode;
-    maxIterations: number;
-  } | null>(null);
+  // prefill is set by LiveLoopPanel.onRerun and consumed by StartLoopForm via useEffect.
+  // It is intentionally never cleared after form submit — a second Re-run click on the
+  // same loop creates a new object, re-triggering the effect with the original values.
+  const [prefill, setPrefill] = useState<LoopPrefill | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -24,6 +23,7 @@ export function App() {
       setRuns(r);
       setError(null);
     } catch (e) {
+      console.error("[refresh]", e);
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);

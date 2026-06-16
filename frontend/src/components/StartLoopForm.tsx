@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { api } from "../api.ts";
-import type { LoopMode } from "../types.ts";
+import type { LoopMode, LoopPrefill } from "../types.ts";
 
 export function StartLoopForm({
   onStarted,
   defaultValues,
 }: {
   onStarted: () => void;
-  defaultValues?: { goal: string; mode: LoopMode; maxIterations: number };
+  // defaultValues must be a stable object reference (e.g. from useState in the parent).
+  // An inline literal passed here would re-trigger the effect on every parent render.
+  defaultValues?: LoopPrefill;
 }) {
   const [goal, setGoal] = useState("");
   const [maxIterations, setMaxIterations] = useState(5);
   const [mode, setMode] = useState<LoopMode>("orchestrated");
   const [busy, setBusy] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (defaultValues) {
@@ -26,10 +29,13 @@ export function StartLoopForm({
     e.preventDefault();
     if (!goal.trim() || busy) return;
     setBusy(true);
+    setSubmitError(null);
     try {
       await api.startLoop(goal.trim(), maxIterations, mode);
       setGoal("");
       onStarted();
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -63,6 +69,7 @@ export function StartLoopForm({
       <button type="submit" disabled={busy || !goal.trim()}>
         {busy ? "Starting..." : "Start loop"}
       </button>
+      {submitError && <div className="banner error">{submitError}</div>}
     </form>
   );
 }

@@ -13,7 +13,7 @@ Two loop modes:
 
 State lives on disk (a `PROGRESS.md` per loop) and in Neon, never in a model's context, so every round starts with a fresh context. The human gate is the resume action: a loop that hits its iteration cap parks in `awaiting_approval` until you approve more rounds.
 
-Every run (orchestrator or worker) lands in Neon with its role, output, tokens, status, and a link to the orchestrator decision that spawned it. The dashboard shows the live loop plus the full history.
+Every run (orchestrator or worker) lands in Neon with its role, output, tokens, status, and a link to the orchestrator decision that spawned it. The dashboard shows the live loop plus the full history. On a completed, stopped, or failed loop you can hit **Re-run** to populate the start form with the same goal, mode, and iteration count.
 
 ```
 orchestrated round:                         Neon                      React dashboard -> Retool

@@ -10,6 +10,12 @@ export type LoopStatus =
 export type LoopMode = "orchestrated" | "ralph";
 export type RunRole = "orchestrator" | "worker";
 
+export interface LoopPrefill {
+  goal: string;
+  mode: LoopMode;
+  maxIterations: number;
+}
+
 export interface Loop {
   id: string;
   goal: string;

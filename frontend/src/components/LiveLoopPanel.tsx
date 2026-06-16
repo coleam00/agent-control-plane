@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api.ts";
-import type { Loop, LoopMode, Run } from "../types.ts";
+import type { Loop, LoopPrefill, Run } from "../types.ts";
 
 export function LiveLoopPanel({
   loop,
@@ -11,16 +11,20 @@ export function LiveLoopPanel({
   loop: Loop;
   runs: Run[];
   onAction: () => void;
-  onRerun?: (prefill: { goal: string; mode: LoopMode; maxIterations: number }) => void;
+  onRerun?: (prefill: LoopPrefill) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const act = async (fn: () => Promise<unknown>, confirmMsg?: string) => {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
     setBusy(true);
+    setActionError(null);
     try {
       await fn();
       onAction();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -82,7 +86,7 @@ export function LiveLoopPanel({
           )}
           <button
             className="danger"
-            disabled={busy || ["completed", "stopped", "failed"].includes(loop.status)}
+            disabled={busy || canRerun}
             onClick={() => act(() => api.stopLoop(loop.id), "Stop this loop?")}
           >
             Stop
@@ -91,6 +95,7 @@ export function LiveLoopPanel({
       </div>
 
       {loop.last_error && <div className="banner error">{loop.last_error}</div>}
+      {actionError && <div className="banner error">Action failed: {actionError}</div>}
 
       {runs.length === 0 ? (
         <div className="empty-state">
