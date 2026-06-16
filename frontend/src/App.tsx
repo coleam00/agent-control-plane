@@ -64,7 +64,7 @@ export function App() {
           {totalCost > 0 && (
             <Stat
               label="Total cost"
-              value={new Intl.NumberFormat("en-US", {
+              value={new Intl.NumberFormat(undefined, {
                 style: "currency",
                 currency: "USD",
                 maximumFractionDigits: 4,

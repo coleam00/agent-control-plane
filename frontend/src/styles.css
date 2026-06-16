@@ -430,7 +430,6 @@ button.danger:hover:not(:disabled) {
   font-size: 11px;
   line-height: 1;
   text-align: center;
-  flex-shrink: 0;
   color: var(--muted);
 }
 
