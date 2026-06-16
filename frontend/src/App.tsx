@@ -14,7 +14,7 @@ export function App() {
   // prefill is set by LiveLoopPanel.onRerun and consumed by StartLoopForm via useEffect.
   // It is intentionally never cleared after form submit — a second Re-run click on the
   // same loop creates a new object, re-triggering the effect with the original values.
-  const [prefill, setPrefill] = useState<LoopPrefill | null>(null);
+  const [prefill, setPrefill] = useState<LoopPrefill | undefined>();
 
   const refresh = useCallback(async () => {
     try {
@@ -68,7 +68,7 @@ export function App() {
 
       {error && <div className="banner error">API error: {error}</div>}
 
-      <StartLoopForm onStarted={refresh} defaultValues={prefill ?? undefined} />
+      <StartLoopForm onStarted={refresh} defaultValues={prefill} />
 
       <section>
         <h2>Live loop</h2>
