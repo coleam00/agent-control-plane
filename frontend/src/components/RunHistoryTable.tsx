@@ -24,6 +24,7 @@ export function RunHistoryTable({ runs }: { runs: Run[] }) {
       <div className="run-filters">
         <input
           className="run-search"
+          aria-label="Search runs"
           placeholder="Search task / result / reasoning…"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
@@ -60,28 +61,36 @@ export function RunHistoryTable({ runs }: { runs: Run[] }) {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((r) => (
-            <tr key={r.id} className={r.status}>
-              <td className="nowrap" title={fmt(r.started_at)}>{relativeTime(r.started_at)}</td>
-              <td>#{r.iteration}</td>
-              <td>
-                <span className={`badge ${r.role}`}>{r.role}</span>
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan={8} className="muted" style={{ textAlign: "center", padding: "1rem" }}>
+                No runs match the current filters.
               </td>
-              <td>
-                <span className={`pill ${r.status}`}>{r.status}</span>
-              </td>
-              <td className="result">
-                {r.role === "orchestrator" && r.reasoning
-                  ? r.reasoning.slice(0, 160)
-                  : (r.output ?? "").replace(/LOOP_STATUS:.*/i, "").trim().slice(0, 160) || "-"}
-              </td>
-              <td className="nowrap">
-                {r.input_tokens ?? "-"} / {r.output_tokens ?? "-"}
-              </td>
-              <td>{r.num_turns ?? "-"}</td>
-              <td className="nowrap">{duration(r.started_at, r.completed_at)}</td>
             </tr>
-          ))}
+          ) : (
+            filtered.map((r) => (
+              <tr key={r.id} className={r.status}>
+                <td className="nowrap" title={fmt(r.started_at)}>{relativeTime(r.started_at)}</td>
+                <td>#{r.iteration}</td>
+                <td>
+                  <span className={`badge ${r.role}`}>{r.role}</span>
+                </td>
+                <td>
+                  <span className={`pill ${r.status}`}>{r.status}</span>
+                </td>
+                <td className="result">
+                  {r.role === "orchestrator" && r.reasoning
+                    ? r.reasoning.slice(0, 160)
+                    : (r.output ?? "").replace(/LOOP_STATUS:.*/i, "").trim().slice(0, 160) || "-"}
+                </td>
+                <td className="nowrap">
+                  {r.input_tokens ?? "-"} / {r.output_tokens ?? "-"}
+                </td>
+                <td>{r.num_turns ?? "-"}</td>
+                <td className="nowrap">{duration(r.started_at, r.completed_at)}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </>
@@ -97,6 +106,7 @@ function relativeTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (secs <= 0) return "just now";
   if (secs < 60) return `${secs}s ago`;
   const mins = Math.floor(secs / 60);
   if (mins < 60) return `${mins}m ago`;
@@ -110,7 +120,7 @@ function duration(start: string, end: string | null): string {
   const s = new Date(start);
   const e = new Date(end);
   if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "-";
-  const secs = Math.round((e.getTime() - s.getTime()) / 1000);
+  const secs = Math.max(0, Math.round((e.getTime() - s.getTime()) / 1000));
   if (secs < 60) return `${secs}s`;
   return `${Math.floor(secs / 60)}m ${secs % 60}s`;
 }
