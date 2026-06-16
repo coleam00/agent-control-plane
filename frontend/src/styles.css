@@ -423,3 +423,27 @@ button.danger:hover:not(:disabled) {
   background: var(--blue-dim);
   color: #b9c8ff;
 }
+
+/* ---- progress bar + collapsible rounds ---- */
+
+.progress-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 999px;
+  margin: 0 0 14px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: var(--pct, 0%);
+  background: var(--blue);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.round-chevron {
+  color: var(--muted);
+  font-size: 10px;
+  flex-shrink: 0;
+}
