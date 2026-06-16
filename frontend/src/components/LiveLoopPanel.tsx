@@ -32,10 +32,7 @@ export function LiveLoopPanel({
   const canResume = ["awaiting_approval", "paused"].includes(loop.status);
   const canPause = loop.status === "running";
   const elapsed = useElapsed(loop.created_at, loop.status === "running");
-  const pct =
-    loop.max_iterations > 0
-      ? Math.min(100, (loop.iterations / loop.max_iterations) * 100)
-      : 0;
+  const pct = computePct(loop.iterations, loop.max_iterations);
 
   return (
     <div className="panel">
@@ -45,7 +42,7 @@ export function LiveLoopPanel({
           <div className="meta">
             <StatusPill status={loop.status} /> · <span className="mode-tag">{loop.mode}</span> ·
             round {loop.iterations}/{loop.max_iterations} ·{" "}
-            {loop.status === "running" && `running for ${elapsed} · `}
+            {loop.status === "running" && elapsed && `running for ${elapsed} · `}
             {loop.model} · {loopTokens.toLocaleString()} tokens
           </div>
         </div>
@@ -82,7 +79,7 @@ export function LiveLoopPanel({
       <div className="progress-bar">
         <div
           className="progress-bar-fill"
-          style={{ "--pct": `${pct.toFixed(1)}%` } as React.CSSProperties}
+          style={{ width: `${pct.toFixed(1)}%` }}
         />
       </div>
 
@@ -100,7 +97,7 @@ export function LiveLoopPanel({
 }
 
 // Orchestrated: each orchestrator decision, then the workers it spawned.
-function OrchestratedView({ runs }: { runs: Run[] }) {
+export function OrchestratedView({ runs }: { runs: Run[] }) {
   const orchestrators = runs.filter((r) => r.role === "orchestrator");
   const workersByParent = new Map<string, Run[]>();
   for (const r of runs) {
@@ -114,6 +111,15 @@ function OrchestratedView({ runs }: { runs: Run[] }) {
   const [openRounds, setOpenRounds] = useState<Set<string>>(
     () => new Set(latestOrchId ? [latestOrchId] : []),
   );
+  // Auto-expand each new round as the loop progresses.
+  useEffect(() => {
+    if (latestOrchId) {
+      setOpenRounds((prev) => {
+        if (prev.has(latestOrchId)) return prev;
+        return new Set([...prev, latestOrchId]);
+      });
+    }
+  }, [latestOrchId]);
   const toggleRound = (id: string) =>
     setOpenRounds((prev) => {
       const s = new Set(prev);
@@ -129,8 +135,16 @@ function OrchestratedView({ runs }: { runs: Run[] }) {
           <div key={orch.id} className="round">
             <div
               className={`orch ${orch.status}`}
-              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
               onClick={() => toggleRound(orch.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleRound(orch.id);
+                }
+              }}
             >
               <span className="round-chevron">{open ? "▼" : "▶"}</span>
               <span className="badge orchestrator">orchestrator</span>
@@ -178,16 +192,16 @@ function FlatView({ runs }: { runs: Run[] }) {
 
 // Live elapsed time since `createdAt`, recomputed each tick (drift-free).
 // Returns "" when inactive so the caller can hide the display.
-function useElapsed(createdAt: string, active: boolean): string {
+export function useElapsed(createdAt: string, active: boolean): string {
   const [elapsed, setElapsed] = useState("");
   useEffect(() => {
     if (!active) {
       setElapsed("");
       return;
     }
+    const start = Date.parse(createdAt);
+    if (isNaN(start)) return;
     const update = () => {
-      const start = Date.parse(createdAt);
-      if (isNaN(start)) return;
       setElapsed(formatElapsed(Math.floor((Date.now() - start) / 1000)));
     };
     update();
@@ -197,7 +211,7 @@ function useElapsed(createdAt: string, active: boolean): string {
   return elapsed;
 }
 
-function formatElapsed(total: number): string {
+export function formatElapsed(total: number): string {
   const s = Math.max(0, total);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -205,6 +219,10 @@ function formatElapsed(total: number): string {
   if (h > 0) return `${h}h ${m}m ${sec}s`;
   if (m > 0) return `${m}m ${sec}s`;
   return `${sec}s`;
+}
+
+export function computePct(iterations: number, maxIterations: number): number {
+  return maxIterations > 0 ? Math.min(100, (iterations / maxIterations) * 100) : 0;
 }
 
 function tokens(r: Run): string {

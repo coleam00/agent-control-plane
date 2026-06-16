@@ -357,6 +357,7 @@ button.danger:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
 }
 
 .orch.failed .orch-reason {
@@ -436,7 +437,7 @@ button.danger:hover:not(:disabled) {
 
 .progress-bar-fill {
   height: 100%;
-  width: var(--pct, 0%);
+  width: 0%;
   background: var(--blue);
   border-radius: 999px;
   transition: width 0.4s ease;
