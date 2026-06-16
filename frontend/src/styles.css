@@ -423,3 +423,26 @@ button.danger:hover:not(:disabled) {
   background: var(--blue-dim);
   color: #b9c8ff;
 }
+
+.run-filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.run-search {
+  flex: 1;
+  min-width: 160px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.run-search::placeholder {
+  color: var(--muted);
+}
