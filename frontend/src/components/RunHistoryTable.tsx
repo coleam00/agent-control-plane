@@ -97,14 +97,18 @@ export function RunHistoryTable({ runs }: { runs: Run[] }) {
   );
 }
 
-function fmt(iso: string): string {
+function parseDate(iso: string): Date | null {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function fmt(iso: string): string {
+  return parseDate(iso)?.toLocaleString() ?? iso;
 }
 
 function relativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  const d = parseDate(iso);
+  if (!d) return iso;
   const secs = Math.floor((Date.now() - d.getTime()) / 1000);
   if (secs <= 0) return "just now";
   if (secs < 60) return `${secs}s ago`;
@@ -117,9 +121,9 @@ function relativeTime(iso: string): string {
 
 function duration(start: string, end: string | null): string {
   if (!end) return "-";
-  const s = new Date(start);
-  const e = new Date(end);
-  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return "-";
+  const s = parseDate(start);
+  const e = parseDate(end);
+  if (!s || !e) return "-";
   const secs = Math.max(0, Math.round((e.getTime() - s.getTime()) / 1000));
   if (secs < 60) return `${secs}s`;
   return `${Math.floor(secs / 60)}m ${secs % 60}s`;
