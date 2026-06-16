@@ -3,7 +3,7 @@ import { api } from "./api.ts";
 import { LiveLoopPanel } from "./components/LiveLoopPanel.tsx";
 import { RunHistoryTable } from "./components/RunHistoryTable.tsx";
 import { StartLoopForm } from "./components/StartLoopForm.tsx";
-import type { Loop, Run } from "./types.ts";
+import type { Loop, LoopMode, Run } from "./types.ts";
 
 const POLL_MS = 2000;
 
@@ -11,6 +11,11 @@ export function App() {
   const [loops, setLoops] = useState<Loop[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [prefill, setPrefill] = useState<{
+    goal: string;
+    mode: LoopMode;
+    maxIterations: number;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,14 +68,25 @@ export function App() {
 
       {error && <div className="banner error">API error: {error}</div>}
 
-      <StartLoopForm onStarted={refresh} />
+      <StartLoopForm onStarted={refresh} defaultValues={prefill ?? undefined} />
 
       <section>
         <h2>Live loop</h2>
         {active ? (
-          <LiveLoopPanel loop={active} runs={activeRuns} onAction={refresh} />
+          <LiveLoopPanel
+            loop={active}
+            runs={activeRuns}
+            onAction={refresh}
+            onRerun={setPrefill}
+          />
         ) : (
-          <p className="muted">No loops yet. Start one above.</p>
+          <div className="empty-state">
+            <span className="empty-state-icon">🤖</span>
+            <span className="empty-state-title">No loops yet</span>
+            <span className="empty-state-sub">
+              Start a loop above to run your first agent task.
+            </span>
+          </div>
         )}
       </section>
 

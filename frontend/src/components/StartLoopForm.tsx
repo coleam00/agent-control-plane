@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api.ts";
 import type { LoopMode } from "../types.ts";
 
-export function StartLoopForm({ onStarted }: { onStarted: () => void }) {
+export function StartLoopForm({
+  onStarted,
+  defaultValues,
+}: {
+  onStarted: () => void;
+  defaultValues?: { goal: string; mode: LoopMode; maxIterations: number };
+}) {
   const [goal, setGoal] = useState("");
   const [maxIterations, setMaxIterations] = useState(5);
   const [mode, setMode] = useState<LoopMode>("orchestrated");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (defaultValues) {
+      setGoal(defaultValues.goal);
+      setMode(defaultValues.mode);
+      setMaxIterations(defaultValues.maxIterations);
+    }
+  }, [defaultValues]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

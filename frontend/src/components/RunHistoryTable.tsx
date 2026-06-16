@@ -1,7 +1,14 @@
 import type { Run } from "../types.ts";
 
 export function RunHistoryTable({ runs }: { runs: Run[] }) {
-  if (runs.length === 0) return <p className="muted">No runs recorded yet.</p>;
+  if (runs.length === 0)
+    return (
+      <div className="empty-state">
+        <span className="empty-state-icon">📋</span>
+        <span className="empty-state-title">No runs yet</span>
+        <span className="empty-state-sub">Completed agent runs will appear here.</span>
+      </div>
+    );
   return (
     <table className="history">
       <thead>
