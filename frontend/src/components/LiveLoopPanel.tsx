@@ -115,6 +115,7 @@ function OrchestratedView({ runs }: { runs: Run[] }) {
               <ul className="workers">
                 {workers.map((w) => (
                   <li key={w.id} className={`worker ${w.status}`}>
+                    <StatusDot status={w.status} />
                     <span className="badge worker">worker</span>
                     <span className="worker-task">{w.task}</span>
                     <span className="run-cost">{tokens(w)}</span>
@@ -135,6 +136,7 @@ function FlatView({ runs }: { runs: Run[] }) {
     <ol className="run-list">
       {runs.map((r) => (
         <li key={r.id} className={`run ${r.status}`}>
+          <StatusDot status={r.status} />
           <span className="run-iter">#{r.iteration}</span>
           <span className="run-output">
             {(r.output ?? "").replace(/LOOP_STATUS:.*/i, "").trim().slice(0, 220) ||
@@ -154,4 +156,11 @@ function tokens(r: Run): string {
 
 function StatusPill({ status }: { status: Loop["status"] }) {
   return <span className={`pill ${status}`}>{status.replace("_", " ")}</span>;
+}
+
+function StatusDot({ status }: { status: Run["status"] }) {
+  if (status === "running") return <span className="status-dot running">●</span>;
+  if (status === "completed") return <span className="status-dot completed">✓</span>;
+  if (status === "failed") return <span className="status-dot failed">✕</span>;
+  return <span className="status-dot" />;
 }

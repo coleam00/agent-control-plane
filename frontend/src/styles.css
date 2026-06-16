@@ -195,7 +195,7 @@ button.danger:hover:not(:disabled) {
 
 .run {
   display: grid;
-  grid-template-columns: 40px 1fr 80px;
+  grid-template-columns: 16px 40px 1fr 80px;
   gap: 12px;
   align-items: center;
   padding: 8px 10px;
@@ -388,7 +388,7 @@ button.danger:hover:not(:disabled) {
 
 .worker {
   display: grid;
-  grid-template-columns: 70px 1fr 90px;
+  grid-template-columns: 16px 70px 1fr 90px;
   gap: 10px;
   align-items: center;
   font-size: 13px;
@@ -422,4 +422,37 @@ button.danger:hover:not(:disabled) {
 .badge.worker {
   background: var(--blue-dim);
   color: #b9c8ff;
+}
+
+/* ---- at-a-glance status dot (●/✓/✕) on run + worker rows ---- */
+
+.status-dot {
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.status-dot.running {
+  color: #b9c8ff;
+  animation: pulse-opacity 1.2s ease-in-out infinite;
+}
+
+.status-dot.completed {
+  color: var(--emerald);
+}
+
+.status-dot.failed {
+  color: var(--red);
+}
+
+@keyframes pulse-opacity {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }

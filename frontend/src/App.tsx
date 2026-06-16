@@ -44,6 +44,9 @@ export function App() {
     (sum, r) => sum + (r.input_tokens ?? 0) + (r.output_tokens ?? 0),
     0,
   );
+  // Metered providers report real cost; flat-rate (Kimi/Pi) always report 0,
+  // so the stat below only renders when there's actual spend to show.
+  const totalCost = runs.reduce((sum, r) => sum + (r.cost_usd ?? 0), 0);
 
   return (
     <div className="app">
@@ -58,6 +61,16 @@ export function App() {
           <Stat label="Loops" value={String(loops.length)} />
           <Stat label="Runs" value={String(runs.length)} />
           <Stat label="Total tokens" value={totalTokens.toLocaleString()} />
+          {totalCost > 0 && (
+            <Stat
+              label="Total cost"
+              value={new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 4,
+              }).format(totalCost)}
+            />
+          )}
         </div>
       </header>
 
