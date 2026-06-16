@@ -12,13 +12,17 @@ export function LiveLoopPanel({
   onAction: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const act = async (fn: () => Promise<unknown>, confirmMsg?: string) => {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
     setBusy(true);
+    setActionError(null);
     try {
       await fn();
       onAction();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -74,6 +78,7 @@ export function LiveLoopPanel({
       </div>
 
       {loop.last_error && <div className="banner error">{loop.last_error}</div>}
+      {actionError && <div className="banner error">Action failed: {actionError}</div>}
 
       {runs.length === 0 ? (
         <p className="muted">Waiting for the first round...</p>
@@ -115,6 +120,7 @@ function OrchestratedView({ runs }: { runs: Run[] }) {
               <ul className="workers">
                 {workers.map((w) => (
                   <li key={w.id} className={`worker ${w.status}`}>
+                    <StatusDot status={w.status} />
                     <span className="badge worker">worker</span>
                     <span className="worker-task">{w.task}</span>
                     <span className="run-cost">{tokens(w)}</span>
@@ -135,6 +141,7 @@ function FlatView({ runs }: { runs: Run[] }) {
     <ol className="run-list">
       {runs.map((r) => (
         <li key={r.id} className={`run ${r.status}`}>
+          <StatusDot status={r.status} />
           <span className="run-iter">#{r.iteration}</span>
           <span className="run-output">
             {(r.output ?? "").replace(/LOOP_STATUS:.*/i, "").trim().slice(0, 220) ||
@@ -154,4 +161,13 @@ function tokens(r: Run): string {
 
 function StatusPill({ status }: { status: Loop["status"] }) {
   return <span className={`pill ${status}`}>{status.replace("_", " ")}</span>;
+}
+
+function StatusDot({ status }: { status: Run["status"] }) {
+  if (status === "running") return <span className="status-dot running">●</span>;
+  if (status === "completed") return <span className="status-dot completed">✓</span>;
+  if (status === "failed") return <span className="status-dot failed">✕</span>;
+  // If Run["status"] ever gains a new value, TypeScript will error here
+  void (status satisfies never);
+  return <span className="status-dot" />;
 }
