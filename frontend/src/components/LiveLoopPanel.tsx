@@ -1,24 +1,30 @@
 import { useState } from "react";
 import { api } from "../api.ts";
-import type { Loop, Run } from "../types.ts";
+import type { Loop, LoopPrefill, Run } from "../types.ts";
 
 export function LiveLoopPanel({
   loop,
   runs,
   onAction,
+  onRerun,
 }: {
   loop: Loop;
   runs: Run[];
   onAction: () => void;
+  onRerun?: (prefill: LoopPrefill) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const act = async (fn: () => Promise<unknown>, confirmMsg?: string) => {
     if (confirmMsg && !window.confirm(confirmMsg)) return;
     setBusy(true);
+    setActionError(null);
     try {
       await fn();
       onAction();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -31,6 +37,7 @@ export function LiveLoopPanel({
   );
   const canResume = ["awaiting_approval", "paused"].includes(loop.status);
   const canPause = loop.status === "running";
+  const canRerun = ["completed", "stopped", "failed"].includes(loop.status);
 
   return (
     <div className="panel">
@@ -63,9 +70,23 @@ export function LiveLoopPanel({
               Approve &amp; resume
             </button>
           )}
+          {canRerun && (
+            <button
+              disabled={busy}
+              onClick={() =>
+                onRerun?.({
+                  goal: loop.goal,
+                  mode: loop.mode,
+                  maxIterations: loop.max_iterations,
+                })
+              }
+            >
+              Re-run
+            </button>
+          )}
           <button
             className="danger"
-            disabled={busy || ["completed", "stopped", "failed"].includes(loop.status)}
+            disabled={busy || canRerun}
             onClick={() => act(() => api.stopLoop(loop.id), "Stop this loop?")}
           >
             Stop
@@ -74,9 +95,14 @@ export function LiveLoopPanel({
       </div>
 
       {loop.last_error && <div className="banner error">{loop.last_error}</div>}
+      {actionError && <div className="banner error">Action failed: {actionError}</div>}
 
       {runs.length === 0 ? (
-        <p className="muted">Waiting for the first round...</p>
+        <div className="empty-state">
+          <span className="empty-state-icon">⏳</span>
+          <span className="empty-state-title">Waiting for the first round</span>
+          <span className="empty-state-sub">The agent is starting up…</span>
+        </div>
       ) : loop.mode === "orchestrated" ? (
         <OrchestratedView runs={runs} />
       ) : (
